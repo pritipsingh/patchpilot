@@ -1,7 +1,7 @@
 # PatchPilot
 
 A Slack coding assistant that reads repositories, prepares changes, and asks for
-approval before opening or updating a pull request. Optional AgntID enforcement
+approval before opening or updating a pull request. AgntID enforcement
 checks repository tool calls against runtime policies.
 
 ## Slack is the workspace
