@@ -45,6 +45,6 @@ jobs:
       # broken Dockerfile is only visible here -- it built fine and crashed at
       # runtime once already.
       - name: Build the image
-        run: docker build -t agno-pr-agent:ci .
+        run: docker build -t patchpilot:ci .
       - name: Dependencies actually resolved
-        run: docker run --rm --entrypoint sh agno-pr-agent:ci -c "python -c 'import agno, github, slack_sdk, psycopg' && git --version && node --version"
+        run: docker run --rm --entrypoint sh patchpilot:ci -c "python -c 'import agno, github, slack_sdk, psycopg' && git --version && node --version"

@@ -1,4 +1,4 @@
-# Trying PR Agent in your Slack workspace
+# Trying PatchPilot in your Slack workspace
 
 The app runs on your Mac. Slack delivers signed HTTP callbacks through ngrok.
 Use a development Slack app and a demo repository for the first run. These steps
@@ -7,7 +7,7 @@ itself has not yet been exercised in this session.
 
 ## 1. Configure the existing .env
 
-Work in `/Users/priti/Desktop/lab/agno-pr-agent-personal` on `main`.
+Work in `/Users/priti/Desktop/lab/patchpilot` on `main`.
 Edit the existing `.env`; do not overwrite it with `example.env`. Keep actual
 tokens in that file, not in Slack messages or the presentation.
 
@@ -32,7 +32,7 @@ Metadata read. `MODEL_ID` must name a model your API account can use.
 For a first Slack connectivity test, explicitly run the original local-tool mode:
 
 ```sh
-cd /Users/priti/Desktop/lab/agno-pr-agent-personal
+cd /Users/priti/Desktop/lab/patchpilot
 PORT=8010 RUNTIME_ENV=dev PREWARM_REPOS=false SLACK_STREAMING=false \
   REQUIRE_CONFIRMATION=true AGNTID_ENABLED=false \
   .venv/bin/python -m app.main
@@ -48,7 +48,7 @@ Install and authenticate ngrok using its official setup if it is not already
 configured. In a second terminal, run:
 
 ```sh
-cd /Users/priti/Desktop/lab/agno-pr-agent-personal
+cd /Users/priti/Desktop/lab/patchpilot
 ngrok http 8010 --traffic-policy-file docs/slack-ngrok-policy.yml
 ```
 
@@ -75,7 +75,7 @@ At https://api.slack.com/apps choose your development app, or create one.
 4. Interactivity & Shortcuts: enable and set
    `https://YOUR-NGROK-HOST/slack/interactions`, then save. This URL is different
    from Event Subscriptions in this Agno version.
-5. Invite the app to a test channel with `/invite @PR Agent` (use its actual name).
+5. Invite the app to a test channel with `/invite @PatchPilot` (use its actual name).
 
 If your tunnel hostname changes, update both Slack URLs. Keep both terminals open.
 
@@ -83,11 +83,11 @@ If your tunnel hostname changes, update both Slack URLs. Keep both terminals ope
 
 In the test channel:
 
-> @PR Agent List the repositories you are allowed to use. Do not change any files.
+> @PatchPilot List the repositories you are allowed to use. Do not change any files.
 
 Then start a thread with:
 
-> @PR Agent In owner/demo-repository, read README.md and summarize it. Do not edit or publish anything.
+> @PatchPilot In owner/demo-repository, read README.md and summarize it. Do not edit or publish anything.
 
 Replace the repository with the exact allowlisted name. Expect a reply in Slack
 and the run in your server logs. For a later publishing test, use a small change

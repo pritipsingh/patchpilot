@@ -22,7 +22,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 # The repos the agent is allowed to touch. Anything outside this list is
 # refused by the toolkit before a request reaches GitHub. First one wins when the
 # agent has to guess which repository an ask is about.
-DEFAULT_REPOS = "agno-agi/agno-os,agno-agi/agno"
+DEFAULT_REPOS = "pritipsingh/patchpilot"
 
 # Every branch the agent pushes starts with this. The toolkit refuses to write
 # to a branch without it, which is what keeps the agent off main and off the
@@ -102,7 +102,7 @@ def workspace_root() -> Path:
     On a container this needs to be a persistent volume: a cold start otherwise
     re-clones every repository.
     """
-    return Path(getenv("WORKSPACE_ROOT", "~/.agno-pr-agent")).expanduser()
+    return Path(getenv("WORKSPACE_ROOT", "~/.patchpilot")).expanduser()
 
 
 def workspace_max_age_hours() -> float:

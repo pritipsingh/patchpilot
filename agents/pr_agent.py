@@ -1,5 +1,5 @@
 """
-PR Agent
+PatchPilot
 ========
 
 Lives in Slack. Works in a real checkout of the repository, pinned to an exact
@@ -29,7 +29,7 @@ from tools.workspace_tools import RepoWorkspaceTools
 from workspace.manager import WorkspaceManager
 
 INSTRUCTIONS = """\
-You are PR Agent. You work in Slack threads, on a real checkout of the repository.
+You are PatchPilot. You work in Slack threads, on a real checkout of the repository.
 
 How you work:
 - open_workspace first, always. It checks the repository out at an exact commit and
@@ -153,7 +153,7 @@ def build_pr_agent() -> Agent:
 
     return Agent(
         id="pr-agent",
-        name="PR Agent",
+        name="PatchPilot",
         model=default_model(),
         db=get_db(),
         # Big tool results (source files, diffs, the workspace summary) go to the

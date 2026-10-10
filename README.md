@@ -1,269 +1,149 @@
-# PR Agent
+# PatchPilot
 
-Private personal demo copy of [agno-agi/agno-pr-agent](https://github.com/agno-agi/agno-pr-agent),
-based on local commit `7f8cd88` with the AgntID integration. Original project
-attribution and documentation are retained. This is a standalone repository,
-not a GitHub fork. See [the local Slack guide](docs/slack-local.md) for current
-verification results and the unresolved intent-classifier limitation.
+A Slack coding assistant that reads repositories, prepares changes, and asks for
+approval before opening or updating a pull request. Optional AgntID enforcement
+checks repository tool calls against runtime policies.
 
-A Slack-native [AgentOS](https://docs.agno.com) service that works on your repositories
-the way a person does: it checks the code out, reads it, changes it, runs the tests, and
-opens a pull request once you approve.
+## What it does
 
-The thread is the interface. Someone reports a bug, the discussion happens, you say
-"open a PR for this" — the agent reads the whole thread, checks out the repo, greps for
-the real cause, makes the change, runs the linter and the tests, shows you the diff, and
-waits for your approval before anything reaches GitHub.
+- Reads code, searches files, and inspects pull requests.
+- Prepares changes in a separate checkout for each Slack thread.
+- Runs permitted development commands and reports their results.
+- Shows the proposed changes and requests approval before publishing.
+- Routes repository tools through AgntID when enforcement is enabled.
 
-```
-you   @PR Agent the Gemini image handler hardcodes image/jpeg, can you fix it
-bot   Reading the thread...
-bot   Checked out agno-agi/agno at a1b3f9c (main). Read CLAUDE.md and .cursorrules.
-bot   libs/agno/agno/models/google/gemini.py:214 hardcodes the MIME type.
-      Changed it to resolve from the image bytes. Ran:
-        ruff check libs/agno/agno/models/google/ — passed
-        pytest libs/agno/tests/unit/models/test_gemini.py -q — 14 passed
-      1 file, +9 −3.  [ Approve ]  [ Deny ]
-you   (Approve)
-bot   Opened agno-agi/agno#9912 (draft) — https://github.com/agno-agi/agno/pull/9912
+Example workflow (illustrative, not a recorded test):
+
+```text
+you   @PatchPilot Find why the image handler always returns image/jpeg.
+bot   Found the hardcoded type in src/images.py. Here is the proposed fix.
+you   Prepare the change and run the relevant tests.
+bot   Here are the diff and test results. Approve publishing a draft PR?
+you   Approve
+bot   Here is the draft pull request.
 ```
 
 ## How it works
 
-```
-Slack thread ──▶ Agent ──▶ worktree (pinned to an exact SHA)
-                   │         read · grep · edit · run tests
-                   │         no credentials · no network · no git
-                   │
-                   └──▶ publish tools ──▶ GitHub API ──▶ pull request
-                             ▲
-                        your approval
+```text
+Slack request → agent → repository tools → local checkout
+                           │
+                           └─ optional AgntID policy checks
+
+Proposed changes → human approval → GitHub API → draft pull request
 ```
 
-The split is the point. The agent does its work in a real checkout, where it can grep
-and run things. It has no way to publish anything itself — no `git`, no token, no push.
-The only path out is a publish tool, and that tool stops and asks you first.
+Each thread uses an isolated Git worktree pinned to a commit. Repository access
+is limited by `GITHUB_REPOS`. Publishing uses a separate tool with approval
+required by default. Slack requests are signature-verified on both callback routes.
 
-### The workspace
+The shell has a command allowlist and a scrubbed environment. File tools block
+common secret paths. These controls are not a complete process sandbox; run
+untrusted repository code in an appropriately isolated environment.
 
-`open_workspace` gives the agent a git worktree cut from a bare mirror, checked out
-**detached at an exact commit** — a branch head, or a pull request's head. Each Slack
-thread gets its own, resolved from the session id, so two threads on two branches never
-share a checkout.
+## Current demo status
 
-The first call also hands the agent the repository's own rules — `AGENTS.md`,
-`CLAUDE.md`, `.cursorrules`, `CONTRIBUTING.md` — and a depth-2 map of the tree. That is
-what stops it writing code that gets rejected on conventions it never read.
+The local Slack connection and deterministic AgntID replay have been exercised.
+The replay demonstrated successful reads/edits, a denied search above the
+configured result limit, and exclusion of the delete tool.
 
-### What the agent can run
+**Known limitation:** the current AgntID intent classifier can reject legitimate
+read-only requests containing constraints such as “Do not edit files.” Updating
+the workspace description did not resolve this false positive. Full protected
+Slack execution and publishing are not yet verified end to end. Details are in
+the [local Slack guide](docs/slack-local.md).
 
-| | |
-|---|---|
-| Read | `read_file` with line numbers, `list_files` with globs, `search_code` (grep over the real checkout, so it sees the PR's own changes) |
-| History | `git_log` on a path, `git_diff` against the pinned commit |
-| Write | `edit_file` (exact substring), `write_file`, `delete_file` |
-| Verify | `run_command` — the repo's formatter, linter, test suite |
-| Review | `get_pull_request`, `get_pull_request_diff` for what git doesn't hold: the description, the review comments |
-| Publish | `review_changes`, then `open_pull_request` or `update_pull_request` |
-
-## What happens when you ask for a PR
-
-1. You @mention it in a thread. Slack POSTs to `/slack/events`; the request signature is
-   verified against `SLACK_SIGNING_SECRET`.
-2. The thread becomes a session (`pr-agent:{channel}:{thread_ts}`), which is also how the
-   agent finds its worktree.
-3. It works: `open_workspace` → reads the repo's conventions → greps → edits → runs the
-   linter and tests → `review_changes`.
-4. It calls `open_pull_request`. The run **pauses** and Slack renders Approve / Deny
-   buttons in the thread. Nothing has touched GitHub yet.
-5. You click Approve. Slack posts the interaction back to the same endpoint — this is why
-   **Interactivity must be enabled**, not just Events — the paused run resumes, and only
-   then does the branch, the commit and the PR get created.
-6. It posts the URL in the thread.
-
-Deny resumes the run with the refusal, and the agent is told not to route around it.
-
-## The boundaries
-
-These are enforced in code, not asked for in the prompt:
-
-- **The agent cannot publish anything.** `git` is not on its command allowlist, its shell
-  environment holds no token, and the worktree's remote carries no credentials. Changes
-  live in the working tree until a publish tool sends them through the API.
-- **Publishing stops for approval.** `open_pull_request` and `update_pull_request` pause
-  the run and render approve/deny buttons in the thread.
-- **Only the repos on the allowlist.** `GITHUB_REPOS` gates both the checkout and the
-  publish.
-- **Only its own branches.** Every write goes to a branch under `PR_BRANCH_PREFIX`
-  (default `pr-agent/`), cut from the exact commit the workspace was pinned to — so if a
-  file moved on the base branch meanwhile, you get a merge conflict to resolve rather
-  than a silent revert.
-- **The shell is allowlisted and credential-free.** `SHELL_ALLOWED_COMMANDS` is checked
-  against every command, including each segment of a `bash -c` script; command
-  substitution and redirects outside the workspace are refused. `HOME` and `TMPDIR` point
-  outside the checkout, so a stray cache file can't ride along into a PR.
-- **Secrets are unreadable.** `.env`, `*.pem`, `*.key`, `.netrc` and `.git` are refused
-  by name, not merely hidden from listings.
-
-What it still can't do: merge, review-approve, or push to a fork.
-
-## Setup
-
-### Optional AgntID enforcement
-
-The helper can route its existing repository tools through an AgntID runtime,
-retaining Slack approval before publishing. See [setup and the before/after
-demo](docs/agntid-demo.md). This mode is opt-in, requires the `agntid` extra, and
-fails closed if the runtime is unavailable. The default local behavior is unchanged.
-
-### 1. Install
+## Run locally
 
 ```bash
-git clone <this repo> && cd agno-pr-agent && ./scripts/venv_setup.sh && cp example.env .env
+git clone https://github.com/pritipsingh/patchpilot.git
+cd patchpilot
+./scripts/venv_setup.sh
+cp example.env .env
 ```
 
-Fill in `OPENAI_API_KEY`, your GitHub identity (below) and `GITHUB_REPOS` — which
-defaults to `agno-agi/agno-os,agno-agi/agno`. `git` must be on PATH, and `node`/`pnpm`
-too if you want it to verify changes to a TypeScript repo like agno-os.
+Fill in `.env` with your model key, Slack bot token and signing secret, and a
+GitHub App or fine-grained token scoped to your chosen repositories. Keep actual
+credentials out of Git. The example repository allowlist is
+`pritipsingh/patchpilot`; change `GITHUB_REPOS` for your own demo repository.
 
-### 2. GitHub identity
-
-This decides **who authors the pull requests**, and it is not the Slack user who asked.
-
-**A GitHub App (recommended).** PRs are authored by the app — `PR Agent[bot]`. No org
-seat, per-repo installation control, and installation tokens are minted on demand and
-expire in an hour rather than sitting in `.env` forever.
-
-1. Create it at `https://github.com/organizations/<org>/settings/apps`.
-2. Repository permissions: **Contents** read+write, **Pull requests** read+write,
-   **Metadata** read-only.
-3. Install it on the repos in `GITHUB_REPOS`, and download a private key.
-4. Set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (a path to the `.pem`, or the PEM
-   inline — escaped newlines are handled).
-
-The installation is resolved per repository, so an app installed across two orgs gets the
-right token for each.
-
-**Or a token.** Set `GITHUB_ACCESS_TOKEN` to a fine-grained token with the same three
-permissions, scoped to the repos in `GITHUB_REPOS`. `agno-agi/agno-os` is private, so it
-must be selected in the token's repository access list and its owner must already have
-access. PRs will read as authored by that account.
-
-Either way the credential lives only in the manager process. It is never written to disk,
-never in the worktree's git config, and never in the agent's shell environment.
-
-**Provenance.** Because the account is shared, every PR body gets a trailer naming the
-person who asked — `Requested by @sam in Slack, and opened by PR Agent on their behalf.`
-It is built from the Slack identity in run metadata, not from anything the model says, so
-it cannot be talked into crediting someone else. That needs `resolve_user_identity=True`,
-which is already on.
-
-### 3. Run it
+GitHub access requires Contents and Pull requests read/write plus Metadata read
+for publishing. A GitHub App must be installed on the selected repository; a
+fine-grained token must explicitly include it. Leave `REQUIRE_CONFIRMATION=true`.
 
 ```bash
-cd agno-pr-agent && source .venv/bin/activate && python -m app.main
+PORT=8010 RUNTIME_ENV=dev PREWARM_REPOS=false \
+SLACK_STREAMING=false REQUIRE_CONFIRMATION=true \
+AGNTID_ENABLED=false .venv/bin/python -m app.main
 ```
 
-AgentOS comes up on `http://localhost:8000`. Connect it at
-[os.agno.com](https://os.agno.com) to try the agent in a browser before wiring up Slack.
-
-### 4. Slack app
-
-1. Create an app at [api.slack.com/apps](https://api.slack.com/apps) → **From scratch**.
-2. **OAuth & Permissions** → Bot Token Scopes: `app_mentions:read`, `channels:history`,
-   `groups:history`, `im:history`, `im:read`, `im:write`, `chat:write`, `users:read`,
-   `files:read`, `assistant:write`.
-3. Install, then copy the **Bot User OAuth Token** (`xoxb-…`) into `SLACK_BOT_TOKEN` and
-   the **Signing Secret** into `SLACK_SIGNING_SECRET`.
-4. **Event Subscriptions** → Request URL `https://<your-host>/slack/events`, bot events
-   `app_mention` and `message.im`.
-5. **Interactivity & Shortcuts** → on, URL `https://<your-host>/slack/interactions`.
-   This is what makes the approve buttons work. Agno 3.0.5 uses a separate route.
-6. `/invite @PR Agent`.
-
-For local testing, follow [the local Slack guide](docs/slack-local.md). It includes
-a tunnel policy that exposes only the signed Slack routes, plus AgntID setup.
-
-### 5. Deploy
-
-**Railway** — push the repo, add a Postgres plugin (it sets `DATABASE_URL`), **attach a
-volume at `/workspace`**, and set `OPENAI_API_KEY`, your GitHub identity vars, `GITHUB_REPOS`,
-`SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `RUNTIME_ENV=prd`. `railway.json` handles the build.
-
-Without the volume it still works, but every cold start re-clones every repo.
-
-**Docker Compose**, locally with Postgres and a workspace volume:
+This starts the server on port 8010 for the initial Slack connectivity test.
+Development mode serves without API authentication. Expose only the signed
+Slack callbacks using the supplied ngrok policy:
 
 ```bash
-cd agno-pr-agent && docker compose up
+ngrok http 8010 --traffic-policy-file docs/slack-ngrok-policy.yml
 ```
 
-> `RUNTIME_ENV` other than `dev` turns on AgentOS authorization, which needs a
-> `JWT_VERIFICATION_KEY` from [os.agno.com](https://os.agno.com). The Slack endpoint is
-> exempt — it verifies Slack's own request signature instead.
+In your Slack app, disable Socket Mode and configure:
 
-## Running the repo's tests
+| Setting | URL |
+| --- | --- |
+| Event Subscriptions | `https://YOUR-NGROK-HOST/slack/events` |
+| Interactivity & Shortcuts | `https://YOUR-NGROK-HOST/slack/interactions` |
 
-`run_command` runs inside the checkout with the *image's* toolchain, not the repo's. Out
-of the box that covers anything on `PATH` — `ruff`, `mypy`, `pytest` — but a repo whose
-suite needs its own dependencies installed will fail until they are. Two options: bake
-them into the image, or add the repo's setup command to `SHELL_ALLOWED_COMMANDS` (`uv` is
-allowed by default) and let the agent install into the workspace.
+Subscribe to `app_mention` and `message.im`, install the required scopes, and
+invite the app to your test channel. Use the actual Slack app display name in
+mentions; changing this repository does not rename an already-installed bot.
+See the [full Slack setup](docs/slack-local.md) for scopes and troubleshooting.
 
-**The repo's own scripts are refused by default.** `./scripts/format.sh` is not an
-allowlisted program, and allowing arbitrary repo scripts would be the same as allowing
-arbitrary code — which is the whole point of the allowlist. Either add the script's name
-to `SHELL_ALLOWED_COMMANDS`, or let the agent run the underlying tools directly, which is
-what it does on its own. In a real run against agno it tried `./scripts/format.sh`, was
-refused, said so, and ran `ruff format` and `ruff check` instead.
+## Enable AgntID
 
-The agent is told never to report a test as passing without its output in front of it —
-in that same run it reported `mypy` as *not run* because it was not installed, rather
-than quietly skipping it.
-
-## Layout
-
-```
-agents/pr_agent.py         The agent: model, tools, instructions
-app/main.py                AgentOS, the Slack interface, the startup sweep
-app/settings.py            Every env var, in one place
-app/credentials.py         Who the agent is on GitHub: App installation, or token
-workspace/manager.py       Mirrors, worktrees, git reads — and the only holder of the token
-tools/workspace_tools.py   The agent's hands: read/grep/edit/run, sandboxed
-tools/publish.py           The one path from workspace to GitHub
-tools/github_repo.py       PR metadata and the API client
-tools/slack_thread.py      read_slack_thread, resolved from the run's session id
-db/__init__.py             Postgres when configured, SQLite otherwise
-```
-
-### How the thread becomes context
-
-Agno's Slack interface maps one thread to one session, with a session id of
-`{agent_id}:{channel_id}:{thread_ts}`. Two things follow:
-
-- The agent remembers a thread across messages for free — that's session history.
-- `read_slack_thread` takes no arguments. It reads the channel and thread timestamp back
-  out of `run_context.session_id`, so it can pull the part of the thread that happened
-  *before* anyone mentioned it. The workspace tools resolve their checkout the same way.
-
-### Adding a repo
+Install the optional integration:
 
 ```bash
-GITHUB_REPOS=agno-agi/agno,agno-agi/agno-docs
+.venv/bin/python -m pip install -e '.[agntid]'
 ```
 
-The token's scope has to cover it too, or the agent passes the allowlist and then fails
-at the API.
+If your virtual environment was created without pip, use
+`uv pip install --python .venv/bin/python -e '.[agntid]'`.
 
-## Notes
+Follow the [runtime setup and replay guide](docs/agntid-demo.md). The private
+callback executor binds to port 8091 by default. Run one application worker and
+keep this endpoint private. The integration retains the internal `pr-agent`
+identity and `pr_agent` tool prefix for compatibility with the existing runtime
+policies and audit history.
 
-- A change set is capped at 25 files and 400KB per file. Binary files are uploaded as
-  blobs; executable bits are preserved.
-- The agent never commits locally. `git status` against the pinned SHA is the whole
-  change set, which is why `review_changes` can show you exactly what will be published.
-- Content the agent reads — PR bodies, diffs, code comments, test fixtures, other
-  people's Slack messages — is data, not instructions. It is told to report embedded
-  instructions rather than follow them.
-- `Workspace` scopes paths; it is not a process sandbox. The command allowlist and the
-  scrubbed environment narrow it a long way, but for genuinely untrusted input run the
-  whole service in a container, which is what the Dockerfile is for.
+## Development
+
+```bash
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m ruff check .
+.venv/bin/python -m mypy agents app db tools workspace
+.venv/bin/python -m pytest tests -q
+```
+
+| Path | Purpose |
+| --- | --- |
+| `agents/pr_agent.py` | Agent instructions and tool wiring |
+| `app/main.py` | HTTP server and Slack interface |
+| `app/agntid_bridge.py` | Policy routing and single-use execution tickets |
+| `app/agntid_executor.py` | Private callback listener |
+| `workspace/manager.py` | Repository mirrors and session checkouts |
+| `tools/` | Workspace, GitHub, publishing, and Slack tools |
+| `scripts/agntid_demo.py` | Deterministic replay on disposable files |
+
+Docker Compose provides a local database and persistent workspace volume.
+Deployment requires your own infrastructure and secrets. The inherited Railway
+workflow is restricted to the original repository and cannot deploy this copy.
+
+## Framework and attribution
+
+PatchPilot uses [Agno](https://docs.agno.com) 3.0.5 and its AgentOS Slack interface,
+plus the optional AgntID SDK. Framework imports, environment variables, and base
+images retain their upstream names.
+
+This private standalone repository derives from
+[agno-agi/agno-pr-agent](https://github.com/agno-agi/agno-pr-agent), using the local
+`7f8cd88` snapshot with the AgntID integration. The original project attribution
+is retained here; the runtime verification notes preserve their historical names.

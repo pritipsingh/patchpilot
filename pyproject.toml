@@ -1,7 +1,7 @@
 [project]
-name = "agno-pr-agent"
+name = "patchpilot"
 version = "0.1.0"
-description = "A Slack-native AgentOS service that reads pull requests and opens them."
+description = "A Slack coding assistant with approval-gated pull requests and optional AgntID enforcement."
 requires-python = ">=3.11,<4"
 readme = "README.md"
 

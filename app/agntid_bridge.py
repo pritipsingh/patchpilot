@@ -256,7 +256,7 @@ class AgntidBridge:
 
         # Docker's host alias is an expected callback host; keep rebinding checks.
         server = FastMCP(
-            "PR Agent executor",
+            "PatchPilot executor",
             stateless_http=True,
             json_response=True,
             transport_security=TransportSecuritySettings(

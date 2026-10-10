@@ -39,7 +39,7 @@ if slack_bot_token() and slack_signing_secret():
             suggested_prompts=[
                 {
                     "title": "Review a PR",
-                    "message": "Review https://github.com/agno-agi/agno/pull/1 and flag anything risky.",
+                    "message": "List the repositories you can access, then wait for me to choose a PR to review.",
                 },
                 {"title": "Explain a change", "message": "What does this PR actually change, in two sentences?"},
                 {"title": "Open a PR", "message": "Open a draft PR fixing the typo described above."},
@@ -81,7 +81,7 @@ async def lifespan(app):  # type: ignore[no-untyped-def]
 # Create AgentOS
 # ---------------------------------------------------------------------------
 agent_os = AgentOS(
-    name="PR Agent OS",
+    name="PatchPilot",
     description="A Slack-native agent that reads and opens pull requests.",
     agents=[pr_agent],
     interfaces=interfaces,

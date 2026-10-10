@@ -6,7 +6,7 @@ One place decides who the agent is on GitHub, and it is the only holder of the
 secret. Two modes:
 
 - **GitHub App** (`GITHUB_APP_ID` + a private key). Pull requests are authored by
-  the app -- `PR Agent[bot]` -- not by a person. Installation tokens are minted on
+  the app -- `PatchPilot[bot]` -- not by a person. Installation tokens are minted on
   demand, expire in an hour, are scoped to the repositories the app is installed
   on, and are never written to disk.
 - **Token** (`GITHUB_ACCESS_TOKEN`). A personal or machine-user token. Pull

@@ -1,4 +1,4 @@
-# PR Agent with AgntID
+# PatchPilot with AgntID
 
 The project remains a Slack-native PR helper. In AgntID mode its repository,
 workspace and publish tools execute through the runtime before reaching their
@@ -9,7 +9,7 @@ before publishing or posting a GitHub comment.
 ## Architecture
 
 ```text
-Slack / AgentOS → Agno tool call → human approval (publish/comment only)
+Slack → agent tool call → human approval (publish/comment only)
                                → AgntID task open + tool call
                                → runtime policy
                                → private MCP callback → existing tool

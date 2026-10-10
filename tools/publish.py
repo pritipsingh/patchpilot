@@ -113,7 +113,7 @@ class PublishTools(Toolkit):
         if not name:
             return ""
         who = f"@{name}" if not str(name).startswith("@") else str(name)
-        return f"\n\n---\nRequested by {who} in Slack, and opened by PR Agent on their behalf."
+        return f"\n\n---\nRequested by {who} in Slack, and opened by PatchPilot on their behalf."
 
     @staticmethod
     def _error(exc: Exception) -> str:

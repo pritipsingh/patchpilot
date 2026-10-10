@@ -92,7 +92,7 @@ def shared_cache_dir() -> Path:
     each thread, and lose it when the checkout is reclaimed. This sits next to the
     mirrors instead, so the second install of a repo is fast.
     """
-    root = Path(os.environ.get("WORKSPACE_ROOT", "~/.agno-pr-agent")).expanduser()
+    root = Path(os.environ.get("WORKSPACE_ROOT", "~/.patchpilot")).expanduser()
     caches = root / "caches"
     caches.mkdir(parents=True, exist_ok=True)
     return caches
