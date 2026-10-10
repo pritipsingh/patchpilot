@@ -4,6 +4,45 @@ A Slack coding assistant that reads repositories, prepares changes, and asks for
 approval before opening or updating a pull request. Optional AgntID enforcement
 checks repository tool calls against runtime policies.
 
+## PatchPilot + AgntID
+
+[AgntID](https://agntid.ai/) provides the runtime policy layer for PatchPilot's
+repository tools. PatchPilot handles the coding workflow; AgntID evaluates the
+protected tool calls before their local implementations execute.
+
+Approval before publishing covers the final GitHub action. AgntID adds checks
+on intermediate operations, such as code searches and file changes. In protected
+mode, each repository tool call carries the user's request and identity to the
+runtime so its decision can be traced in Reporting.
+
+| Control | How PatchPilot uses it |
+| --- | --- |
+| Tool availability | Checks the runtime's tool list; unavailable tools stop before execution. |
+| Argument policies | Applies configured limits, such as a maximum of 20 search results. |
+| Intent validation | Supplies the original request for the runtime's intent check; current false positives are documented below. |
+| Audit trail | Opens a task for each tool call and links denials to its task ID and Reporting evidence. |
+| Private execution | Uses a single-use ticket binding the approved callback to the exact tool, arguments, and session. |
+
+If the runtime is unavailable or denies a request, the bridge does not fall back
+to unprotected execution. Human approval before publishing remains a separate
+requirement. Slack thread-reading itself is outside this repository-tool bridge.
+
+### Verified policy demonstration
+
+The deterministic replay uses temporary sample files and the real AgntID runtime:
+
+| Action | Observed result |
+| --- | --- |
+| Search with `limit=5` | Completed |
+| Read and edit a sample function | Completed; resulting file checked |
+| Search with `limit=100` | Denied by the configured 1–20 range policy |
+| Delete the sample deployment file | Tool excluded by the Medium profile; file preserved |
+
+The excluded delete call never reached runtime execution; the oversized search
+is the recorded policy denial. This replay is separate from an end-to-end Slack
+demo. See [setup, architecture, and recorded evidence](docs/agntid-demo.md), or
+jump to [enabling AgntID](#enable-agntid).
+
 ## What it does
 
 - Reads code, searches files, and inspects pull requests.
@@ -26,11 +65,14 @@ bot   Here is the draft pull request.
 ## How it works
 
 ```text
-Slack request → agent → repository tools → local checkout
-                           │
-                           └─ optional AgntID policy checks
-
-Proposed changes → human approval → GitHub API → draft pull request
+With AgntID enabled:
+Slack → PatchPilot → repository tool call
+                         ↓
+                 human approval (publishing only)
+                         ↓
+                 AgntID runtime checks
+                         ↓
+                 private callback → local tool / GitHub API
 ```
 
 Each thread uses an isolated Git worktree pinned to a commit. Repository access
