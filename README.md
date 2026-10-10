@@ -4,6 +4,41 @@ A Slack coding assistant that reads repositories, prepares changes, and asks for
 approval before opening or updating a pull request. Optional AgntID enforcement
 checks repository tool calls against runtime policies.
 
+## Slack is the workspace
+
+Bug reports and review discussions often start in a conversation. PatchPilot lets
+you turn that discussion into a coding task from the same Slack thread: ask about
+the code, refine the request, inspect the proposed change, and approve publishing.
+
+| Slack feature | What it enables |
+| --- | --- |
+| Channel mentions | Invite the bot to a channel and mention it when a discussion needs code investigation. |
+| Direct messages | Try a focused task with the bot in your own test workspace. |
+| Thread context | Continue a task in the same thread; the agent retains recent conversation history and can read the thread through its Slack tool. |
+| Separate sessions | Each thread maps to its own session and repository checkout. |
+| Approval buttons | With confirmation enabled, publishing pauses for an Approve / Deny decision in Slack. |
+| Requester attribution | Published PR descriptions identify the requesting Slack user; GitHub credentials determine the PR author. |
+| Policy feedback | In AgntID mode, the agent is instructed to stop on a denial and report the tool and task ID for inspection. |
+
+Slack is the conversation and approval interface. PatchPilot performs the coding
+work, GitHub stores the resulting PR, and AgntID provides policy decisions and
+audit evidence for protected repository tool calls. The server runs locally or
+on your infrastructure; the Slack app delivers signed callbacks to it.
+
+### Presenting the Slack workflow
+
+> “PatchPilot brings the coding workflow into a Slack thread. I can ask it to
+> investigate a repository, follow up with context, and approve a proposed PR
+> without leaving the conversation. AgntID checks protected tool calls before
+> execution and gives me a separate record of policy decisions.”
+
+For the current demo, show a message and reply in your test workspace, then the
+matching AgntID decision in Reporting. Keep follow-ups in the same thread. Only
+show a successful search or publishing approval as live evidence after that
+step has been rehearsed successfully; see [current demo status](#current-demo-status).
+The installed bot may still be called **PR Agent** until its Slack display name
+is changed separately.
+
 ## PatchPilot + AgntID
 
 [AgntID](https://agntid.ai/) provides the runtime policy layer for PatchPilot's
