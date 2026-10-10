@@ -11,6 +11,8 @@ concurrency:
 
 jobs:
   deploy:
+    # This inherited deployment belongs only to the original repository.
+    if: github.repository == 'agno-agi/agno-pr-agent'
     runs-on: ubuntu-latest
     environment: production
     steps:
