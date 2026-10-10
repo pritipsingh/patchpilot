@@ -1,0 +1,53 @@
+services:
+  pr-agent-db:
+    image: agnohq/pgvector:16
+    container_name: pr-agent-db
+    restart: unless-stopped
+    ports:
+      - "${DB_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${DB_USER:-ai}
+      POSTGRES_PASSWORD: ${DB_PASS:-ai}
+      POSTGRES_DB: ${DB_DATABASE:-ai}
+    networks:
+      - pr-agent
+
+  pr-agent-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pr-agent-api
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      --reload-dir agents --reload-dir app --reload-dir db --reload-dir tools
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - workspaces:/workspace
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RUNTIME_ENV: dev
+      AGNO_DEBUG: "True"
+      WORKSPACE_ROOT: /workspace
+      DB_HOST: pr-agent-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-ai}
+      DB_PASS: ${DB_PASS:-ai}
+      DB_DATABASE: ${DB_DATABASE:-ai}
+    depends_on:
+      - pr-agent-db
+    networks:
+      - pr-agent
+
+networks:
+  pr-agent:
+
+volumes:
+  pgdata:
+  workspaces:

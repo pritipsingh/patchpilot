@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Railway CLI
+        run: npm i -g @railway/cli
+
+      - name: Deploy
+        run: railway up --service agno-pr-agent --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      # A deploy that builds and then crashes on boot looks identical to a good
+      # one from the CLI's point of view, so prove the service answers.
+      - name: Wait for it to answer
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://agno-pr-agent-production.up.railway.app/health || true)
+            if [ "$code" = "200" ]; then echo "healthy"; exit 0; fi
+            sleep 10
+          done
+          echo "service did not become healthy"; exit 1

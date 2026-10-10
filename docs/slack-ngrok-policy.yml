@@ -1,0 +1,8 @@
+# Only signed Slack callbacks reach the local development server.
+on_http_request:
+  - expressions:
+      - "req.method != 'POST' || !(req.url.path in ['/slack/events', '/slack/interactions'])"
+    actions:
+      - type: deny
+        config:
+          status_code: 404

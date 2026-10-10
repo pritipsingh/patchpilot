@@ -1,0 +1,4 @@
+agno[os,slack,github]==3.0.5
+openai
+psycopg[binary]
+python-dotenv
